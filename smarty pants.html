@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smarty Pants Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Bangers&family=Rubik+Bubbles&family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            image-rendering: pixelated;
+        }
+
+        /* --- UI Styles --- */
+        .font-bubble { font-family: 'Rubik Bubbles', cursive; }
+        .font-croobie { font-family: 'Fredoka One', cursive; letter-spacing: 1px; }
+        .text-shadow-retro { text-shadow: 2px 2px 0px #000; }
+        
+        .title-smarty { color: #722880; text-shadow: 4px 4px 0px #D72D51; -webkit-text-stroke: 2px white; }
+        .title-pants { color: #F08800; text-shadow: 4px 4px 0px #DEB600; -webkit-text-stroke: 2px white; }
+
+        .game-btn { 
+            border: 4px solid #fff; box-shadow: 4px 4px 0px #000; color: white; 
+            text-transform: uppercase; transition: transform 0.1s; text-shadow: 2px 2px 0px rgba(0,0,0,0.3);
+        }
+        .game-btn:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px #000; }
+        .theme-card { border: 4px solid white; box-shadow: 6px 6px 0px black; }
+        .theme-card:hover { transform: translateY(-4px); transition: 0.2s; cursor: pointer; background-color: #fff !important; color: black !important; }
+
+        /* --- Game World --- */
+        #game-viewport { position: relative; background-color: #222; overflow: hidden; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
+        #world-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; transition: transform 0.1s linear; }
+        
+        .platform { position: absolute; border: 2px solid rgba(0,0,0,0.5); z-index: 10; box-sizing: border-box; }
+        .hazard { position: absolute; display: flex; justify-content: center; align-items: center; font-size: 24px; z-index: 15; }
+        .collectible { position: absolute; font-size: 24px; animation: bounce 1s infinite alternate; z-index: 15; }
+        
+        /* Player Hitbox Container */
+        #player-avatar { 
+            position: absolute; 
+            width: 40px; 
+            height: 60px; 
+            z-index: 100; 
+            transition: transform 0.05s; 
+        }
+        
+        /* Game Sprite - Adjusted to sit ON TOP of platform */
+        #player-sprite { 
+            transform-origin: bottom center; 
+            transform: scale(0.28); 
+            position: absolute; 
+            bottom: -12px; /* Correct offset for feet */
+            left: -85px; 
+            filter: drop-shadow(0 5px 2px rgba(0,0,0,0.4));
+            pointer-events: none;
+        } 
+        
+        .game-entity { position: absolute; display: flex; justify-content: center; align-items: center; font-size: 30px; z-index: 20; }
+        .projectile { position: absolute; font-size: 20px; z-index: 25; animation: spin 0.5s linear infinite; }
+        .hit-effect { position: absolute; font-size: 40px; z-index: 50; animation: fadeUp 0.5s ease-out forwards; pointer-events: none; }
+
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-30px) scale(1.5); } }
+
+        /* --- Inventory/UI --- */
+        .glass-panel { background: #6b8cff; border: 4px solid #fff; box-shadow: 0 0 0 4px #000; border-radius: 4px; color: white; }
+        .mc-ui-container { background-color: #c6c6c6; border: 4px solid #000; box-shadow: inset -4px -4px 0px #555, inset 4px 4px 0px #fff; color: black; display: flex; flex-direction: column; width: 100%; height: 100%; max-width: 900px; max-height: 600px; }
+        .mc-grid-slot { width: 64px; height: 64px; background-color: #8b8b8b; border: 2px solid #373737; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 32px; overflow: hidden; position: relative; }
+        .mc-grid-slot img { width: 90%; height: 90%; object-fit: contain; }
+        .mc-tab { padding: 10px; background: #555; color: #ccc; border: 2px solid #000; cursor: pointer; margin-right: 4px; }
+        .mc-tab.active { background: #c6c6c6; color: black; border-bottom: 4px solid #c6c6c6; }
+        .color-swatch { width: 32px; height: 32px; border: 2px solid #000; cursor: pointer; transition: transform 0.1s; }
+        .color-swatch:hover { transform: scale(1.2); border-color: white; }
+
+        /* --- ROBLOX-STYLE AVATAR RIG --- */
+        .roblox-avatar {
+            position: relative;
+            width: 150px;
+            height: 250px;
+            transform-style: preserve-3d;
+            perspective: 800px;
+        }
+
+        .rb-part {
+            position: absolute;
+            background-color: #facc15; 
+            border: 2px solid rgba(0,0,0,0.1);
+            transform-style: preserve-3d;
+            transition: all 0.3s;
+            overflow: hidden; 
+            display: flex; justify-content: center; align-items: center;
+        }
+        
+        .rb-head { width: 50px; height: 50px; top: 0; left: 50px; border-radius: 8px; z-index: 10; font-size: 30px; }
+        .rb-torso { width: 70px; height: 80px; top: 55px; left: 40px; z-index: 5; background-size: cover; background-position: center top; background-repeat: no-repeat; }
+        .rb-arm-l { width: 25px; height: 70px; top: 55px; left: 10px; transform-origin: top center; border-radius: 4px; background-color: #facc15; background-size: cover; background-position: center; }
+        .rb-arm-r { width: 25px; height: 70px; top: 55px; left: 115px; transform-origin: top center; border-radius: 4px; background-color: #facc15; background-size: cover; background-position: center; }
+        .rb-leg-l { width: 30px; height: 80px; top: 140px; left: 42px; transform-origin: top center; background-color: #3b82f6; background-size: cover; border-radius: 4px; background-position: center top; }
+        .rb-leg-r { width: 30px; height: 80px; top: 140px; left: 78px; transform-origin: top center; background-color: #3b82f6; background-size: cover; border-radius: 4px; background-position: center top; }
+        
+        .rb-hair { position: absolute; top: -15px; left: -10px; width: 150%; text-align: center; font-size: 50px; z-index: 11; pointer-events: none; }
+        .rb-shoes { position: absolute; bottom: -10px; left: 0; width: 100%; text-align: center; font-size: 20px; z-index: 6; pointer-events: none; }
+        .rb-acc { position: absolute; top: 10px; right: -30px; font-size: 30px; z-index: 12; }
+
+        @keyframes twirl { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+        .anim-twirl { animation: twirl 0.8s ease-in-out; }
+
+        /* Walking Animation */
+        @keyframes walk { 0%, 100% { transform: rotate(15deg); } 50% { transform: rotate(-15deg); } }
+        @keyframes walk-inverse { 0%, 100% { transform: rotate(-15deg); } 50% { transform: rotate(15deg); } }
+        
+        .anim-walk .rb-arm-l { animation: walk 0.5s infinite linear; }
+        .anim-walk .rb-arm-r { animation: walk-inverse 0.5s infinite linear; }
+        .anim-walk .rb-leg-l { animation: walk-inverse 0.5s infinite linear; }
+        .anim-walk .rb-leg-r { animation: walk 0.5s infinite linear; }
+
+        /* Dab */
+        .anim-dab .rb-head { transform: rotate(25deg) translate(5px, 5px); }
+        .anim-dab .rb-arm-l { transform: rotate(-120deg) translate(-10px, 0); } 
+        .anim-dab .rb-arm-r { transform: rotate(-100deg) translate(0, 20px); } 
+        .anim-dab .rb-torso { transform: rotate(10deg); }
+
+        /* Controls */
+        .d-pad-btn { background: #333; border: 2px solid #555; border-radius: 4px; color: #ccc; font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 0px #000; }
+        .d-pad-btn:active { background: #111; transform: translate(2px, 2px); box-shadow: none; }
+        .action-btn { background: #e60012; border-radius: 50%; border: 2px solid #fff; color: white; box-shadow: 3px 3px 0px #550000; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+        .action-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+    </style>
+</head>
+<body class="h-screen w-full relative flex items-center justify-center bg-gray-900">
+
+    <div id="main-background" class="absolute inset-0 w-full h-full z-0 bg-cover bg-center"
+         style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://i.postimg.cc/CMDJ06pG/background-smarty-pants.jpg');">
+    </div>
+
+    <div id="game-container" class="relative z-10 w-full max-w-6xl p-2 flex flex-col items-center justify-center text-center h-full">
+        
+        <div id="view-menu" class="w-full flex flex-col items-center animate-fade-in relative">
+            <div class="mb-10 transform hover:scale-105 transition-transform duration-300 cursor-pointer text-center">
+                <h1 class="text-8xl md:text-9xl leading-none mb-4 font-bubble">
+                    <span class="title-smarty">Smarty</span><br>
+                    <span class="title-pants">Pants</span>
+                </h1>
+                <p class="text-white text-lg mt-4 font-croobie tracking-wider text-center" style="text-shadow: 3px 3px 0 #000;">
+                    dress smart, study smart and play smart
+                </p>
+            </div>
+            
+            <div class="flex flex-col gap-6 w-full max-w-md justify-center z-20 mt-4">
+                <button onclick="switchView('avatar')" class="game-btn px-8 py-4 text-2xl font-croobie bg-gradient-to-r from-purple-600 to-purple-400 hover:from-purple-500 hover:to-purple-300">
+                    👗 make your own avatar
+                </button>
+                <button onclick="switchView('theme-select')" class="game-btn px-8 py-4 text-2xl font-croobie bg-gradient-to-r from-yellow-500 to-yellow-300 hover:from-yellow-400 hover:to-yellow-200 text-black border-yellow-200">
+                    💡 answer question
+                </button>
+                <button onclick="switchView('rewards')" class="game-btn px-8 py-4 text-2xl font-croobie bg-gradient-to-r from-green-600 to-green-400 hover:from-green-500 hover:to-green-300">
+                    🪙 daily loot
+                </button>
+            </div>
+        </div>
+
+        <div id="view-avatar" class="hidden flex items-center justify-center w-full h-full">
+            <div class="mc-ui-container">
+                <div class="flex justify-between items-center p-2 bg-blue-800 text-white border-b-4 border-black">
+                    <h2 class="text-xl font-croobie">AVATAR STUDIO</h2>
+                    <div class="flex gap-2">
+                        <button onclick="switchView('menu')" class="px-2 py-1 bg-red-600 border-2 border-white text-xs">BACK</button>
+                        <button onclick="saveLook()" class="px-2 py-1 bg-green-600 border-2 border-white text-xs">SAVE</button>
+                    </div>
+                </div>
+                <div class="flex flex-1 p-4 gap-4 overflow-hidden">
+                    <div class="w-1/3 bg-blue-200 border-4 border-black flex flex-col items-center justify-center relative bg-white overflow-hidden">
+                        
+                        <div class="roblox-avatar scale-90 mb-4 z-10" id="avatar-display">
+                            <div class="rb-part rb-head" id="rb-head">
+                                <div id="show-face">🙂</div>
+                                <div class="rb-hair" id="show-hair"></div>
+                                <div class="rb-acc" id="show-acc"></div>
+                            </div>
+                            <div class="rb-part rb-torso" id="rb-torso"></div>
+                            <div class="rb-part rb-arm-l" id="rb-arm-l"></div>
+                            <div class="rb-part rb-arm-r" id="rb-arm-r"></div>
+                            <div class="rb-part rb-leg-l" id="rb-leg-l">
+                                <div class="rb-shoes" id="show-shoe-l"></div>
+                            </div>
+                            <div class="rb-part rb-leg-r" id="rb-leg-r">
+                                <div class="rb-shoes" id="show-shoe-r"></div>
+                            </div>
+                        </div>
+
+                        <div class="absolute bottom-4 flex gap-2 z-20">
+                            <button onclick="triggerAnim('twirl')" class="bg-yellow-400 border-2 border-black px-2 py-1 text-[10px] font-bold hover:bg-yellow-300">TWIRL</button>
+                            <button onclick="triggerAnim('dab')" class="bg-pink-400 border-2 border-black px-2 py-1 text-[10px] font-bold hover:bg-pink-300">DAB</button>
+                        </div>
+                    </div>
+                    
+                    <div class="w-2/3 flex flex-col">
+                        <div class="flex mb-0 overflow-x-auto">
+                            <div class="mc-tab active" onclick="setCategory('body', this)">SHIRTS</div>
+                            <div class="mc-tab" onclick="setCategory('legs', this)">PANTS</div>
+                            <div class="mc-tab" onclick="setCategory('hair', this)">HAIR</div>
+                            <div class="mc-tab" onclick="setCategory('face', this)">FACE</div>
+                            <div class="mc-tab" onclick="setCategory('feet', this)">SHOES</div>
+                            <div class="mc-tab" onclick="setCategory('acc', this)">ACC</div>
+                        </div>
+                        <div class="flex-1 bg-gray-300 border-4 border-black p-4 overflow-y-auto">
+                            <div id="items-grid" class="grid grid-cols-4 md:grid-cols-5 gap-2"></div>
+                            <div id="color-picker" class="hidden mt-4 bg-white/50 p-2 rounded border-2 border-black">
+                                <p class="text-xs font-bold mb-2 text-black">DYE CLOTHES:</p>
+                                <div class="flex gap-2">
+                                    <div onclick="applyColor('purple')" class="color-swatch bg-purple-500"></div>
+                                    <div onclick="applyColor('pink')" class="color-swatch bg-pink-500"></div>
+                                    <div onclick="applyColor('blue')" class="color-swatch bg-blue-500"></div>
+                                    <div onclick="applyColor('yellow')" class="color-swatch bg-yellow-400"></div>
+                                    <div onclick="applyColor('green')" class="color-swatch bg-green-500"></div>
+                                    <div onclick="applyColor('red')" class="color-swatch bg-red-600"></div>
+                                    <div onclick="applyColor('none')" class="color-swatch bg-white flex items-center justify-center text-[10px] font-bold">X</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-theme-select" class="hidden glass-panel p-8 rounded-none w-full max-w-4xl border-4 border-white bg-black">
+            <h2 class="text-3xl text-white mb-8 text-shadow-retro">SELECT TEMPLE</h2>
+            <div class="flex flex-col md:flex-row gap-6 justify-center">
+                <div onclick="startPlatformer('horror')" class="theme-card bg-gray-800 p-6 text-white flex-1 flex flex-col items-center border-4 border-gray-600">
+                    <div class="text-4xl mb-4">👻</div><h3 class="text-xl">GHOST<br>MANSION</h3>
+                </div>
+                <div onclick="startPlatformer('candy')" class="theme-card bg-pink-800 p-6 text-white flex-1 flex flex-col items-center border-4 border-pink-600">
+                    <div class="text-4xl mb-4">🍭</div><h3 class="text-xl">SUGAR<br>SPIRE</h3>
+                </div>
+                <div onclick="startPlatformer('classroom')" class="theme-card bg-blue-800 p-6 text-white flex-1 flex flex-col items-center border-4 border-blue-600">
+                    <div class="text-4xl mb-4">📚</div><h3 class="text-xl">CLASSROOM<br>CHAOS</h3>
+                </div>
+            </div>
+            <button onclick="switchView('menu')" class="mt-8 text-gray-500 text-xs hover:text-white">BACK</button>
+        </div>
+
+        <div id="view-game-engine" class="hidden w-full h-full absolute inset-0 bg-black z-50 flex flex-col text-white">
+            <div class="bg-black/80 p-2 flex justify-between items-center z-50 h-16 px-4 absolute top-0 w-full border-b-4 border-white/20">
+                <div class="flex flex-col w-1/4">
+                    <div class="text-xs text-yellow-400">SCORE: <span id="score-val" class="text-white">0000</span></div>
+                    <div id="health-display" class="text-lg">❤️❤️❤️</div>
+                </div>
+                <div class="flex flex-col items-center w-1/2">
+                    <div class="bg-gray-800 border-2 border-gray-600 px-4 py-1 rounded text-center">
+                        <span class="text-[10px] text-blue-300 block">TIME</span>
+                        <span id="timer-val" class="text-xl text-white font-mono tracking-widest">10:00</span>
+                    </div>
+                </div>
+                <div class="flex gap-2 items-center justify-end w-1/4 pointer-events-auto">
+                    <button onclick="togglePause()" class="bg-yellow-500 hover:bg-yellow-400 text-black border-2 border-white px-3 py-2 text-xs font-bold shadow-lg">|| PAUSE</button>
+                    <button onclick="switchView('theme-select')" class="bg-blue-600 hover:bg-blue-500 text-white border-2 border-white px-3 py-2 text-xs font-bold shadow-lg">⬅ BACK</button>
+                    <button onclick="quitGame()" class="bg-red-600 hover:bg-red-500 text-white border-2 border-white px-3 py-2 text-xs font-bold shadow-lg">✖ QUIT</button>
+                </div>
+            </div>
+            
+            <div id="game-viewport" class="flex-1 w-full h-full relative">
+                <div id="world-container"></div>
+            </div>
+
+            <div id="game-pause-overlay" class="hidden absolute inset-0 z-[80] bg-black/80 flex flex-col items-center justify-center text-white">
+                <h2 class="text-4xl text-yellow-500 mb-8 tracking-widest text-shadow-retro">PAUSED</h2>
+                <div class="flex flex-col gap-4">
+                    <button onclick="togglePause()" class="game-btn px-8 py-4 text-xl">RESUME</button>
+                    <button onclick="quitGame()" class="game-btn px-8 py-4 bg-red-600 text-xl">QUIT TO MENU</button>
+                </div>
+            </div>
+
+            <div class="h-40 bg-gray-900 border-t-4 border-gray-600 p-4 flex justify-between items-center z-[60] relative md:hidden">
+                <div class="flex gap-4">
+                    <button class="d-pad-btn w-16 h-16" ontouchstart="setKey('ArrowLeft', true)" ontouchend="setKey('ArrowLeft', false)">⬅️</button>
+                    <button class="d-pad-btn w-16 h-16" ontouchstart="setKey('ArrowRight', true)" ontouchend="setKey('ArrowRight', false)">➡️</button>
+                </div>
+                <button class="d-pad-btn w-20 h-20 bg-blue-600 border-blue-400 text-xs" ontouchstart="setKey(' ', true)" ontouchend="setKey(' ', false)">JUMP</button>
+            </div>
+        </div>
+
+        <div id="view-rewards" class="hidden glass-panel p-8 rounded-3xl w-full max-w-4xl h-full overflow-y-auto">
+            <h2 class="font-bangers text-5xl text-teal-600 mb-6 text-center drop-shadow-md">Trophy Room</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="bg-gray-800 border-4 border-gray-400 p-6 rounded-3xl text-white flex flex-col items-center">
+                    <div class="text-6xl mb-4">🏆</div><h3 class="font-bangers text-2xl">Daily Loot</h3>
+                </div>
+            </div>
+            <div class="text-center"><button onclick="switchView('menu')" class="game-btn bg-teal-500 text-white font-bold py-3 px-12 rounded-full font-bangers text-xl">Back</button></div>
+        </div>
+
+        <div id="modal-quiz" class="hidden absolute inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+            <div class="bg-blue-900 border-4 border-white rounded-lg p-8 w-full max-w-2xl text-center text-white shadow-2xl">
+                <h2 class="text-2xl mb-4 text-yellow-400">CHEST CHALLENGE!</h2>
+                <p class="text-sm mb-6 leading-relaxed" id="modal-question">Question?</p>
+                <div class="flex flex-col gap-3" id="modal-answers"></div>
+            </div>
+        </div>
+        
+        <div id="modal-explanation" class="hidden absolute inset-0 z-[110] bg-black/95 flex items-center justify-center p-4">
+            <div class="bg-red-900 border-4 border-white rounded-lg p-8 w-full max-w-2xl text-center text-white shadow-2xl">
+                <h2 class="text-2xl mb-4 text-yellow-400 font-croobie">INFO</h2>
+                <p id="explanation-text" class="mb-6 font-press">Here is the explanation...</p>
+                <button onclick="document.getElementById('modal-explanation').classList.add('hidden')" class="game-btn px-6 py-2 bg-green-600">GOT IT</button>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        // --- Game State & Navigation ---
+        const views = ['menu', 'avatar', 'theme-select', 'game-engine', 'rewards'];
+        let gameState = {
+            currentView: 'menu',
+            isPlaying: false,
+            isPaused: false,
+            score: 0,
+            theme: 'default'
+        };
+
+        function switchView(viewName) {
+            views.forEach(v => {
+                document.getElementById(`view-${v}`).classList.add('hidden');
+            });
+            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+            
+            // Initializing Avatar Grid if entering avatar view
+            if(viewName === 'avatar') {
+                setCategory('body', document.querySelector('.mc-tab'));
+            }
+        }
+
+        function quitGame() {
+            gameState.isPlaying = false;
+            document.getElementById('world-container').innerHTML = ''; // Clear world
+            switchView('menu');
+        }
+
+        // --- Avatar Creator Logic ---
+        const avatarAssets = {
+            body: ['👕', '👔', '👚', '🧥'],
+            legs: ['👖', '🩳', '👗', '🛹'],
+            hair: ['🧑', '👩', '🦱', '💇'],
+            face: ['🙂', '😎', '😜', '😡'],
+            feet: ['👞', '👟', '👠', '👢'],
+            acc:  ['🧢', '👓', '👑', '🎒']
+        };
+
+        let currentCategory = 'body';
+
+        function setCategory(cat, tabElement) {
+            currentCategory = cat;
+            // Update tabs
+            document.querySelectorAll('.mc-tab').forEach(t => t.classList.remove('active'));
+            if(tabElement) tabElement.classList.add('active');
+
+            // Populate Grid
+            const grid = document.getElementById('items-grid');
+            grid.innerHTML = '';
+            
+            // Show/Hide color picker
+            const picker = document.getElementById('color-picker');
+            if(cat === 'body' || cat === 'legs') {
+                picker.classList.remove('hidden');
+            } else {
+                picker.classList.add('hidden');
+            }
+
+            avatarAssets[cat].forEach(item => {
+                const slot = document.createElement('div');
+                slot.className = 'mc-grid-slot';
+                slot.innerText = item;
+                slot.onclick = () => equipItem(cat, item);
+                grid.appendChild(slot);
+            });
+        }
+
+        function equipItem(category, item) {
+            // Simple visual representation using emojis/text for this demo
+            if (category === 'face') document.getElementById('show-face').innerText = item;
+            if (category === 'hair') document.getElementById('show-hair').innerText = item;
+            if (category === 'acc') document.getElementById('show-acc').innerText = item;
+            if (category === 'feet') {
+                document.getElementById('show-shoe-l').innerText = item;
+                document.getElementById('show-shoe-r').innerText = item;
+            }
+            // For body/legs we would swap textures in a real game, here we'll just log it or apply colors
+        }
+
+        function applyColor(color) {
+            let target = currentCategory === 'body' ? ['rb-arm-l', 'rb-arm-r', 'rb-torso'] : ['rb-leg-l', 'rb-leg-r'];
+            let colorMap = {
+                'purple': '#a855f7', 'pink': '#ec4899', 'blue': '#3b82f6', 
+                'yellow': '#eab308', 'green': '#22c55e', 'red': '#dc2626', 'none': '#facc15'
+            };
+            
+            if (currentCategory === 'legs' && color === 'none') colorMap['none'] = '#3b82f6'; // Default jeans
+
+            target.forEach(id => {
+                document.getElementById(id).style.backgroundColor = color === 'none' ? colorMap['none'] : colorMap[color];
+            });
+        }
+
+        function triggerAnim(animName) {
+            const avatar = document.getElementById('avatar-display');
+            avatar.classList.remove('anim-twirl', 'anim-dab');
+            void avatar.offsetWidth; // trigger reflow
+            avatar.classList.add(`anim-${animName}`);
+        }
+
+        function saveLook() {
+            alert("Avatar Saved!");
+            switchView('menu');
+        }
+
+        // --- Platformer Engine (Simplified) ---
+        let gameLoopId;
+        let player = { x: 100, y: 0, vy: 0, grounded: false };
+        let keys = {};
+        
+        function startPlatformer(theme) {
+            gameState.theme = theme;
+            gameState.isPlaying = true;
+            gameState.score = 0;
+            switchView('game-engine');
+            generateWorld();
+            
+            // Add Player to world
+            const world = document.getElementById('world-container');
+            const pContainer = document.createElement('div');
+            pContainer.id = 'player-avatar';
+            
+            // Clone the avatar from the creator
+            const avatarClone = document.getElementById('avatar-display').cloneNode(true);
+            avatarClone.id = 'player-sprite';
+            avatarClone.classList.add('anim-walk'); // Default walking anim
+            pContainer.appendChild(avatarClone);
+            world.appendChild(pContainer);
+
+            player.x = 50;
+            player.y = 200;
+            player.vy = 0;
+
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoop();
+        }
+
+        function generateWorld() {
+            const world = document.getElementById('world-container');
+            world.innerHTML = '';
+            
+            // Floor
+            createPlatform(0, 0, 2000, 40);
+
+            // Random platforms based on theme
+            for(let i=0; i<10; i++) {
+                createPlatform(300 + (i*250), 100 + (Math.random()*100), 150, 20);
+                
+                // Add collectable
+                const coin = document.createElement('div');
+                coin.className = 'collectible';
+                coin.innerText = gameState.theme === 'candy' ? '🍬' : '💎';
+                coin.style.left = (350 + (i*250)) + 'px';
+                coin.style.bottom = (150 + (Math.random()*100)) + 'px';
+                world.appendChild(coin);
+            }
+        }
+
+        function createPlatform(x, y, w, h) {
+            const p = document.createElement('div');
+            p.className = 'platform bg-gray-600';
+            if (gameState.theme === 'candy') p.classList.add('bg-pink-400', 'border-pink-200');
+            if (gameState.theme === 'horror') p.classList.add('bg-gray-900', 'border-purple-900');
+            
+            p.style.left = x + 'px';
+            p.style.bottom = y + 'px';
+            p.style.width = w + 'px';
+            p.style.height = h + 'px';
+            document.getElementById('world-container').appendChild(p);
+        }
+
+        function togglePause() {
+            gameState.isPaused = !gameState.isPaused;
+            const overlay = document.getElementById('game-pause-overlay');
+            if(gameState.isPaused) overlay.classList.remove('hidden');
+            else overlay.classList.add('hidden');
+            
+            if(!gameState.isPaused) gameLoop();
+        }
+
+        // Input Handling
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+        
+        function setKey(key, state) {
+            keys[key] = state;
+        }
+
+        function gameLoop() {
+            if(!gameState.isPlaying || gameState.isPaused) return;
+
+            // Physics
+            if (keys['ArrowRight']) player.x += 5;
+            if (keys['ArrowLeft']) player.x -= 5;
+            
+            if (keys[' '] && player.grounded) {
+                player.vy = 15;
+                player.grounded = false;
+            }
+
+            player.y += player.vy;
+            player.vy -= 0.8; // Gravity
+
+            // Floor Collision (Simple)
+            if (player.y <= 40) {
+                player.y = 40;
+                player.vy = 0;
+                player.grounded = true;
+            }
+
+            // Update DOM
+            const pParams = document.getElementById('player-avatar');
+            const world = document.getElementById('world-container');
+            
+            if(pParams) {
+                pParams.style.left = player.x + 'px';
+                pParams.style.bottom = player.y + 'px';
+                
+                // Camera Follow
+                const cameraX = -(player.x - 300);
+                world.style.transform = `translateX(${cameraX}px)`;
+                
+                // Flip sprite
+                const sprite = document.getElementById('player-sprite');
+                if(keys['ArrowLeft']) sprite.style.transform = "scaleX(-0.28) scaleY(0.28)";
+                if(keys['ArrowRight']) sprite.style.transform = "scaleX(0.28) scaleY(0.28)";
+            }
+
+            // Random Quiz Trigger (Demo purpose)
+            if(Math.random() < 0.001 && !document.getElementById('modal-quiz').classList.contains('hidden') === false) {
+                 showQuiz();
+            }
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Quiz System ---
+        function showQuiz() {
+            gameState.isPaused = true;
+            const modal = document.getElementById('modal-quiz');
+            modal.classList.remove('hidden');
+            
+            const questions = [
+                { q: "What is 12 x 12?", a: ["120", "144", "124"], correct: 1 },
+                { q: "Which is a noun?", a: ["Run", "Blue", "Cat"], correct: 2 },
+                { q: "H2O is water?", a: ["True", "False"], correct: 0 }
+            ];
+            
+            const q = questions[Math.floor(Math.random() * questions.length)];
+            document.getElementById('modal-question').innerText = q.q;
+            
+            const ansContainer = document.getElementById('modal-answers');
+            ansContainer.innerHTML = '';
+            
+            q.a.forEach((ans, index) => {
+                const btn = document.createElement('button');
+                btn.className = "game-btn bg-blue-600 hover:bg-blue-500 py-2";
+                btn.innerText = ans;
+                btn.onclick = () => {
+                    if(index === q.correct) {
+                        alert("Correct! +100 Points");
+                        gameState.score += 100;
+                        document.getElementById('score-val').innerText = gameState.score;
+                    } else {
+                        alert("Wrong! Try again next time.");
+                    }
+                    modal.classList.add('hidden');
+                    gameState.isPaused = false;
+                    gameLoop();
+                };
+                ansContainer.appendChild(btn);
+            });
+        }
+    </script>
+</body>
+</html>
